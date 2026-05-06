@@ -46,7 +46,7 @@ If `claude-code` is auto-detected or passed with `-a`, `autoskills` writes a `CL
 | ----------------- | ----------------------------------------------------- |
 | `-y`, `--yes`     | Skip confirmation prompt, install all detected skills |
 | `--dry-run`       | Show detected skills without installing anything      |
-| `-v`, `--verbose` | Show error details if any installation fails          |
+| `-v`, `--verbose` | Show install trace and error details                  |
 | `-h`, `--help`    | Show help message                                     |
 
 ## Supported Technologies
@@ -76,6 +76,9 @@ If `claude-code` is auto-detected or passed with `-a`, `autoskills` writes a `CL
 | Hono                 | `hono` package                                                                                                                                    |
 | NestJS               | `@nestjs/core` package                                                                                                                            |
 | Spring Boot          | Gradle with `spring-boot-starter` or `org.springframework.boot`                                                                                   |
+| ASP.NET Core         | `.csproj` file with `Microsoft.NET.Sdk.Web`                                                                                                       |
+| Blazor               | `.csproj` with `Microsoft.NET.Sdk.BlazorWebAssembly` or `Microsoft.AspNetCore.Components`                                                         |
+| ASP.NET Minimal API  | `.csproj` with `Microsoft.AspNetCore.OpenApi` or `Swashbuckle.AspNetCore`                                                                         |
 
 ### Styling & UI
 
@@ -98,17 +101,21 @@ If `claude-code` is auto-detected or passed with `-a`, `autoskills` writes a `CL
 | Turborepo  | `turbo` package or `turbo.json`                              |
 | Vitest     | `vitest` package or `vitest.config.*`                        |
 | oxlint     | `oxlint` package or `.oxlintrc.json`                         |
+| .NET       | `global.json`, `NuGet.Config`, `*.csproj`, `*.sln`           |
+| C#         | `*.csproj`, `*.sln`                                          |
 
 ### Backend & Data
 
-| Technology    | Detected from                                            |
-| ------------- | -------------------------------------------------------- |
-| Supabase      | `@supabase/supabase-js`, `@supabase/ssr`                 |
-| Neon Postgres | `@neondatabase/serverless`                               |
-| Prisma        | `prisma`, `@prisma/client`                               |
-| Drizzle ORM   | `drizzle-orm`, `drizzle-kit`                             |
-| Stripe        | `stripe`, `@stripe/stripe-js`, `@stripe/react-stripe-js` |
-| Better Auth   | `better-auth` package                                    |
+| Technology      | Detected from                                            |
+| --------------- | -------------------------------------------------------- |
+| Supabase        | `@supabase/supabase-js`, `@supabase/ssr`                 |
+| Zod             | `zod` package                                            |
+| React Hook Form | `react-hook-form` package                                |
+| Neon Postgres   | `@neondatabase/serverless`                               |
+| Prisma          | `prisma`, `@prisma/client`                               |
+| Drizzle ORM     | `drizzle-orm`, `drizzle-kit`                             |
+| Stripe          | `stripe`, `@stripe/stripe-js`, `@stripe/react-stripe-js` |
+| Better Auth     | `better-auth` package                                    |
 
 ### Authentication
 
@@ -160,6 +167,7 @@ When multiple technologies are used together, `autoskills` detects **technology 
 - **Tailwind CSS + shadcn/ui** — Tailwind v4 + shadcn integration
 - **Expo + Tailwind CSS** — Tailwind setup for Expo
 - **React Native + Expo** — Native UI patterns
+- **React Hook Form + Zod** — Form validation patterns with Zod schemas
 - **GSAP + React** — GSAP animation patterns in React
 - **Cloudflare + Vite** — Vinext migration guide
 - **Node.js + Express** — Express server patterns

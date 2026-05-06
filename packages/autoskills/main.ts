@@ -16,11 +16,18 @@ import {
   red,
   pink,
   gray,
+  muted,
   SHOW_CURSOR,
 } from "./colors.ts";
 import { printBanner, multiSelect, formatTime } from "./ui.ts";
-import { installAll, resolveSkillsBin } from "./installer.ts";
-import { shouldGenerateClaudeMd, generateClaudeMd } from "./claude.ts";
+import {
+  clearAutoskillsCache,
+  installAll,
+  loadRegistry,
+  securityCheckForSkillPath,
+} from "./installer.ts";
+import type { InstallSecurityCheck } from "./installer.ts";
+import { cleanupClaudeMd } from "./claude.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION: string = (() => {
@@ -34,6 +41,7 @@ const VERSION: string = (() => {
   }
   return "0.0.0";
 })();
+const ISSUES_URL = "https://github.com/midudev/autoskills/issues";
 
 process.on("SIGINT", () => {
   write(SHOW_CURSOR + "\n");
@@ -47,6 +55,7 @@ interface CliArgs {
   dryRun: boolean;
   verbose: boolean;
   help: boolean;
+  clearCache: boolean;
   agents: string[];
 }
 
@@ -65,6 +74,7 @@ function parseArgs(): CliArgs {
     dryRun: args.includes("--dry-run"),
     verbose: args.includes("--verbose") || args.includes("-v"),
     help: args.includes("--help") || args.includes("-h"),
+    clearCache: args.includes("--clear-cache"),
     agents,
   };
 }
@@ -77,12 +87,14 @@ function showHelp(): void {
     npx autoskills                   Detect & install skills
     npx autoskills ${dim("-y")}                   Skip confirmation
     npx autoskills ${dim("--dry-run")}            Show what would be installed
+    npx autoskills ${dim("--clear-cache")}        Clear downloaded skills cache
     npx autoskills ${dim("-a cursor claude-code")} Install for specific IDEs only
 
   ${bold("Options:")}
     -y, --yes       Skip confirmation prompt
     --dry-run       Show skills without installing
-    -v, --verbose   Show error details on failure
+    --clear-cache   Clear downloaded skills cache
+    -v, --verbose   Show install trace and error details
     -a, --agent     Install for specific IDEs only (e.g. cursor, claude-code)
     -h, --help      Show this help message
 `);
@@ -149,18 +161,34 @@ function formatSkillLabel(skill: string, { styled = false }: { styled?: boolean 
     return `${author} › ${skillName}`;
   }
 
-  return `${gray(author)} ${gray("›")} ${cyan(bold(skillName))}`;
+  return `${muted(author)} ${gray("›")} ${cyan(bold(skillName))}`;
+}
+
+function securityWarningForSkill(skill: string): string | null {
+  const check = securityCheckForSkillPath(skill);
+  if (check?.status !== "warning") return null;
+
+  const findings = check.findings.map((finding) => finding.trim()).filter(Boolean);
+  const detail = [check.summary.trim(), findings.join("; ")].filter(Boolean).join(" ");
+  return detail || "The sync review found issues that should be checked.";
 }
 
 function printSkillsList(skills: SkillEntry[]): void {
   const INSTALLED_TAG = " (installed)";
+  const SECURITY_TAG = " (security check ⚠)";
   const entries = skills.map((s) => ({
     ...s,
     label: formatSkillLabel(s.skill),
     styledLabel: formatSkillLabel(s.skill, { styled: true }),
+    hasSecurityWarning: Boolean(securityWarningForSkill(s.skill)),
   }));
   const maxEffective = Math.max(
-    ...entries.map((e) => e.label.length + (e.installed ? INSTALLED_TAG.length : 0)),
+    ...entries.map(
+      (e) =>
+        e.label.length +
+        (e.installed ? INSTALLED_TAG.length : 0) +
+        (e.hasSecurityWarning ? SECURITY_TAG.length : 0),
+    ),
   );
   const newCount = skills.filter((s) => !s.installed).length;
   const installedCount = skills.length - newCount;
@@ -171,14 +199,18 @@ function printSkillsList(skills: SkillEntry[]): void {
   log(cyan("   ◆ ") + bold(`Skills to install `) + dim(countLabel));
   log();
   for (let i = 0; i < entries.length; i++) {
-    const { label, styledLabel, sources, installed } = entries[i];
+    const { label, styledLabel, sources, installed, hasSecurityWarning } = entries[i];
     const techSources = sources.filter((s) => !s.includes(" + "));
-    const tag = installed ? dim(INSTALLED_TAG) : "";
-    const effectiveLen = label.length + (installed ? INSTALLED_TAG.length : 0);
+    const installedTag = installed ? dim(INSTALLED_TAG) : "";
+    const securityTag = hasSecurityWarning ? yellow(SECURITY_TAG) : "";
+    const effectiveLen =
+      label.length +
+      (installed ? INSTALLED_TAG.length : 0) +
+      (hasSecurityWarning ? SECURITY_TAG.length : 0);
     const pad = " ".repeat(maxEffective - effectiveLen);
     const num = String(i + 1).padStart(2, " ");
     const sourceSuffix = techSources.length > 0 ? `  ${dim(`← ${techSources.join(", ")}`)}` : "";
-    log(dim(`   ${num}.`) + ` ${styledLabel}${tag}${pad}${sourceSuffix}`);
+    log(dim(`   ${num}.`) + ` ${styledLabel}${installedTag}${securityTag}${pad}${sourceSuffix}`);
   }
   log();
 }
@@ -212,6 +244,99 @@ function briefErrorReason(stderr: string, output: string): string {
   if (lines.length === 0) return "Unknown error";
   const line = lines[0];
   return line.length > 80 ? line.slice(0, 77) + "..." : line;
+}
+
+function visiblePad(value: string, width: number): string {
+  return value + " ".repeat(Math.max(0, width - stripAnsi(value).length));
+}
+
+function truncateVisible(value: string, width: number): string {
+  const plain = stripAnsi(value);
+  if (plain.length <= width) return value;
+  if (width <= 1) return "…";
+  return plain.slice(0, width - 1) + "…";
+}
+
+function wrapText(value: string, width: number): string[] {
+  if (width <= 0) return [value];
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [""];
+
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (word.length > width) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      for (let i = 0; i < word.length; i += width) {
+        lines.push(word.slice(i, i + width));
+      }
+      continue;
+    }
+
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+
+  if (line) lines.push(line);
+  return lines;
+}
+
+function formatSecurityFindings(check: InstallSecurityCheck): string | null {
+  const findings = check.findings.map((finding) => finding.trim()).filter(Boolean);
+  if (findings.length === 0) return null;
+
+  const summary = check.summary.trim();
+  return [summary, findings.join("; ")].filter(Boolean).join(" ");
+}
+
+function printSecurityChecks(checks: InstallSecurityCheck[]): void {
+  const checksWithFindings = checks
+    .map((check) => ({ check, findings: formatSecurityFindings(check) }))
+    .filter((entry): entry is { check: InstallSecurityCheck; findings: string } =>
+      Boolean(entry.findings),
+    );
+  if (checksWithFindings.length === 0) return;
+
+  const sorted = checksWithFindings.sort((a, b) => a.check.name.localeCompare(b.check.name));
+  const skillWidth = Math.min(34, Math.max(5, ...sorted.map(({ check }) => check.name.length)));
+  const checkWidth = 7;
+  const terminalWidth = process.stdout.columns || 100;
+  const findingsWidth = Math.max(40, terminalWidth - skillWidth - checkWidth - 16);
+
+  log();
+  log(cyan("   ◆ ") + bold("Security checks"));
+  log();
+  log(
+    dim(
+      `   | ${visiblePad("Skill", skillWidth)} | ${visiblePad("Check", checkWidth)} | ${visiblePad("Findings", findingsWidth)} |`,
+    ),
+  );
+  log(
+    dim(
+      `   | ${"-".repeat(skillWidth)} | ${"-".repeat(checkWidth)} | ${"-".repeat(findingsWidth)} |`,
+    ),
+  );
+
+  for (const { check, findings } of sorted) {
+    const status = check.status === "warning" ? yellow("warning") : green("ok");
+    const lines = wrapText(findings, findingsWidth);
+    log(
+      `   | ${visiblePad(truncateVisible(check.name, skillWidth), skillWidth)} | ${visiblePad(status, checkWidth)} | ${visiblePad(lines[0], findingsWidth)} |`,
+    );
+    for (const line of lines.slice(1)) {
+      log(
+        `   | ${visiblePad("", skillWidth)} | ${visiblePad("", checkWidth)} | ${visiblePad(line, findingsWidth)} |`,
+      );
+    }
+  }
 }
 
 interface SummaryOptions {
@@ -278,10 +403,11 @@ function printSummary({ installed, failed, errors, elapsed, verbose }: SummaryOp
           log(dim(`       ${reason}`));
         }
       }
+      log();
       if (!verbose) {
-        log();
-        log(dim("   Run with --verbose to see full error details."));
+        log(dim("   Run again with --verbose to see the full error details."));
       }
+      log(dim(`   If it looks like an autoskills bug, please create an issue: ${ISSUES_URL}`));
     }
   }
 
@@ -299,17 +425,26 @@ async function selectSkills(skills: SkillEntry[], autoYes: boolean): Promise<Ski
   }
 
   const INSTALLED_TAG = " (installed)";
-  const labelCache = new Map<string, { label: string; styledLabel: string }>();
+  const SECURITY_TAG = " (security check ⚠)";
+  const labelCache = new Map<
+    string,
+    { label: string; styledLabel: string; hasSecurityWarning: boolean }
+  >();
   for (const s of skills) {
     labelCache.set(s.skill, {
       label: formatSkillLabel(s.skill),
       styledLabel: formatSkillLabel(s.skill, { styled: true }),
+      hasSecurityWarning: Boolean(securityWarningForSkill(s.skill)),
     });
   }
   const maxEffective = Math.max(
     ...skills.map((s) => {
-      const len = labelCache.get(s.skill)!.label.length;
-      return len + (s.installed ? INSTALLED_TAG.length : 0);
+      const cached = labelCache.get(s.skill)!;
+      return (
+        cached.label.length +
+        (s.installed ? INSTALLED_TAG.length : 0) +
+        (cached.hasSecurityWarning ? SECURITY_TAG.length : 0)
+      );
     }),
   );
 
@@ -324,10 +459,14 @@ async function selectSkills(skills: SkillEntry[], autoYes: boolean): Promise<Ski
 
   const selected = await multiSelect(skills, {
     labelFn: (s) => {
-      const { label, styledLabel } = labelCache.get(s.skill)!;
-      const tag = s.installed ? " " + dim("(installed)") : "";
-      const effectiveLen = label.length + (s.installed ? INSTALLED_TAG.length : 0);
-      return styledLabel + tag + " ".repeat(maxEffective - effectiveLen);
+      const { label, styledLabel, hasSecurityWarning } = labelCache.get(s.skill)!;
+      const installedTag = s.installed ? " " + dim("(installed)") : "";
+      const securityTag = hasSecurityWarning ? yellow(SECURITY_TAG) : "";
+      const effectiveLen =
+        label.length +
+        (s.installed ? INSTALLED_TAG.length : 0) +
+        (hasSecurityWarning ? SECURITY_TAG.length : 0);
+      return styledLabel + installedTag + securityTag + " ".repeat(maxEffective - effectiveLen);
     },
     hintFn: (s) => {
       const techSources = s.sources.filter((src) => !src.includes(" + "));
@@ -361,14 +500,25 @@ async function selectSkills(skills: SkillEntry[], autoYes: boolean): Promise<Ski
 // ── Main ─────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { autoYes, dryRun, verbose, help, agents } = parseArgs();
+  const { autoYes, dryRun, verbose, help, clearCache, agents } = parseArgs();
 
   if (help) {
     showHelp();
     process.exit(0);
   }
 
-  printBanner(VERSION);
+  if (clearCache) {
+    const { cacheDir, removed } = clearAutoskillsCache();
+    log(
+      removed
+        ? green(`   ✔ Cleared autoskills cache: ${cacheDir}`)
+        : dim(`   No autoskills cache found: ${cacheDir}`),
+    );
+    log();
+    process.exit(0);
+  }
+
+  await printBanner(VERSION);
 
   const projectDir = resolve(".");
 
@@ -391,21 +541,18 @@ async function main(): Promise<void> {
 
   if (skills.length === 0) {
     log(yellow("   No skills available for your stack yet."));
-    log(dim("   Check https://skills.sh for the latest."));
+    log(dim("   Check https://autoskills.sh for the latest."));
     log();
     process.exit(0);
   }
 
   if (!dryRun) {
-    setImmediate(resolveSkillsBin);
+    setImmediate(loadRegistry);
   }
 
   if (dryRun) {
     printSkillsList(skills);
     log(dim(`   Agents: ${resolvedAgents.join(", ")}`));
-    if (shouldGenerateClaudeMd(resolvedAgents)) {
-      log(dim("   Claude Code detected: `CLAUDE.md` will be generated after install."));
-    }
     log(dim("   --dry-run: nothing was installed."));
     log();
     process.exit(0);
@@ -413,46 +560,41 @@ async function main(): Promise<void> {
 
   const selectedSkills = await selectSkills(skills, autoYes);
 
-  if (!autoYes && process.stdout.isTTY) {
-    write("\x1b[H\x1b[2J\x1b[3J");
-    printBanner(VERSION);
-  } else {
-    log();
-  }
+  log();
 
   log(cyan("   ◆ ") + bold("Installing skills..."));
   log(dim(`   Agents: ${resolvedAgents.join(", ")}`));
   log();
 
   const startTime = Date.now();
-  const { installed, failed, errors } = await installAll(selectedSkills, resolvedAgents);
+  const { installed, failed, errors, securityChecks } = await installAll(
+    selectedSkills,
+    resolvedAgents,
+    {
+      verbose,
+    },
+  );
   const elapsed = Date.now() - startTime;
-  let claudeSummary: { generated: boolean; files: number } | null = null;
+  const claudeCleanup = cleanupClaudeMd(projectDir);
 
-  if (shouldGenerateClaudeMd(resolvedAgents)) {
-    claudeSummary = generateClaudeMd(projectDir);
-  }
-
-  if (process.stdout.isTTY) {
+  if (process.stdout.isTTY && !verbose) {
     const up = selectedSkills.length + 2;
     write(`\x1b[${up}A\r\x1b[K`);
     log(green("   ◆ ") + bold("Done!"));
     write(`\x1b[${selectedSkills.length + 1}B`);
   }
 
-  printSummary({ installed, failed, errors, elapsed, verbose });
-
-  if (shouldGenerateClaudeMd(resolvedAgents)) {
-    if (claudeSummary?.generated) {
-      log(
-        dim(`   Claude Code summary written to CLAUDE.md (${claudeSummary.files} markdown files).`),
-      );
-      log();
+  if (claudeCleanup.cleaned) {
+    if (claudeCleanup.deleted) {
+      log(dim("   Removed autoskills section from CLAUDE.md (file was empty, deleted)."));
     } else {
-      log(dim("   Claude Code detected, but no markdown files were found under .claude/skills."));
-      log();
+      log(dim("   Removed autoskills section from CLAUDE.md."));
     }
+    log();
   }
+
+  printSecurityChecks(securityChecks);
+  printSummary({ installed, failed, errors, elapsed, verbose });
 }
 
 main().catch((err: Error) => {

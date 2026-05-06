@@ -4,12 +4,14 @@ export interface ConfigFileContentBlock {
   files?: string[];
   patterns: string[];
   scanGradleLayout?: boolean;
+  scanDotNetLayout?: boolean;
 }
 
 export interface DetectConfig {
   packages?: string[];
   packagePatterns?: RegExp[];
   configFiles?: string[];
+  fileExtensions?: string[];
   gems?: string[];
   configFileContent?: ConfigFileContentBlock | ConfigFileContentBlock[];
 }
@@ -38,8 +40,8 @@ export const SKILLS_MAP: Technology[] = [
       packages: ["react", "react-dom"],
     },
     skills: [
-      "vercel-labs/agent-skills/vercel-react-best-practices",
-      "vercel-labs/agent-skills/vercel-composition-patterns",
+      "vercel-labs/agent-skills/react-best-practices",
+      "vercel-labs/agent-skills/composition-patterns",
     ],
   },
   {
@@ -62,7 +64,6 @@ export const SKILLS_MAP: Technology[] = [
       packages: ["vue"],
     },
     skills: [
-      "hyf0/vue-skills/vue-best-practices",
       "hyf0/vue-skills/vue-debug-guides",
       "antfu/skills/vue",
       "antfu/skills/vue-best-practices",
@@ -110,7 +111,7 @@ export const SKILLS_MAP: Technology[] = [
       "angular/angular/reference-signal-forms",
       "angular/angular/reference-compiler-cli",
       "angular/angular/adev-writing-guide",
-      "angular/angular/PR Review",
+      "angular/angular/pr_review",
     ],
   },
   {
@@ -149,6 +150,22 @@ export const SKILLS_MAP: Technology[] = [
     skills: ["wshobson/agents/typescript-advanced-types"],
   },
   {
+    id: "react-hook-form",
+    name: "React Hook Form",
+    detect: {
+      packages: ["react-hook-form"],
+    },
+    skills: ["pproenca/dot-skills/react-hook-form"],
+  },
+  {
+    id: "zod",
+    name: "Zod",
+    detect: {
+      packages: ["zod"],
+    },
+    skills: ["pproenca/dot-skills/zod"],
+  },
+  {
     id: "supabase",
     name: "Supabase",
     detect: {
@@ -163,6 +180,21 @@ export const SKILLS_MAP: Technology[] = [
       packages: ["@neondatabase/serverless"],
     },
     skills: ["neondatabase/agent-skills/neon-postgres"],
+  },
+  {
+    id: "instantdb",
+    name: "InstantDB",
+    detect: {
+      packages: [
+        "@instantdb/core",
+        "@instantdb/react",
+        "@instantdb/react-native",
+        "@instantdb/react-native-mmkv",
+        "@instantdb/admin",
+      ],
+      configFiles: ["instant.schema.ts", "instant.perms.ts"],
+    },
+    skills: ["instantdb/skills/instantdb"],
   },
   {
     id: "playwright",
@@ -197,7 +229,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       packages: ["react-native"],
     },
-    skills: ["sleekdotdesign/agent-skills/sleek-design-mobile-apps"],
+    skills: ["sleekdotdesign/agent-skills/design-mobile-apps"],
   },
   {
     id: "dart",
@@ -273,7 +305,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       packages: ["remotion", "@remotion/cli"],
     },
-    skills: ["remotion-dev/skills/remotion-best-practices"],
+    skills: ["remotion-dev/skills/remotion"],
   },
   {
     id: "react-router",
@@ -350,10 +382,10 @@ export const SKILLS_MAP: Technology[] = [
       packages: ["better-auth"],
     },
     skills: [
-      "better-auth/skills/better-auth-best-practices",
-      "better-auth/skills/email-and-password-best-practices",
-      "better-auth/skills/organization-best-practices",
-      "better-auth/skills/two-factor-authentication-best-practices",
+      "better-auth/skills/best-practices",
+      "better-auth/skills/emailAndPassword",
+      "better-auth/skills/organization",
+      "better-auth/skills/twoFactor",
     ],
   },
   {
@@ -383,7 +415,7 @@ export const SKILLS_MAP: Technology[] = [
     skills: [
       "microsoft/github-copilot-for-azure/azure-deploy",
       "microsoft/github-copilot-for-azure/azure-ai",
-      "microsoft/github-copilot-for-azure/azure-cost-optimization",
+      "microsoft/github-copilot-for-azure/azure-cost",
       "microsoft/github-copilot-for-azure/azure-diagnostics",
     ],
   },
@@ -393,7 +425,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       packages: ["ai", "@ai-sdk/openai", "@ai-sdk/anthropic", "@ai-sdk/google"],
     },
-    skills: ["vercel/ai/ai-sdk"],
+    skills: ["vercel/ai/use-ai-sdk"],
   },
   {
     id: "elevenlabs",
@@ -444,11 +476,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       packages: ["agents"],
     },
-    skills: [
-      "cloudflare/skills/agents-sdk",
-      "cloudflare/skills/building-mcp-server-on-cloudflare",
-      "cloudflare/skills/sandbox-sdk",
-    ],
+    skills: ["cloudflare/skills/agents-sdk", "cloudflare/skills/sandbox-sdk"],
   },
   {
     id: "cloudflare-ai",
@@ -460,7 +488,7 @@ export const SKILLS_MAP: Technology[] = [
         patterns: ['"ai"'],
       },
     },
-    skills: ["cloudflare/skills/building-ai-agent-on-cloudflare"],
+    skills: ["cloudflare/skills/agents-sdk"],
   },
   {
     id: "terraform",
@@ -493,14 +521,14 @@ export const SKILLS_MAP: Technology[] = [
     id: "swiftui",
     name: "SwiftUI",
     detect: {
-      configFiles: ["Package.swift"],
+      configFiles: ["Package.swift", "Podfile"],
     },
     skills: [
       "avdlee/swiftui-agent-skill/swiftui-expert-skill",
-      "avdlee/swift-concurrency-agent-skill",
-      "avdlee/xcode-build-optimization-agent-skill",
-      "avdlee/swift-testing-agent-skill",
-      "avdlee/core-data-agent-skill",
+      "avdlee/swift-concurrency-agent-skill/swift-concurrency",
+      "avdlee/xcode-build-optimization-agent-skill/xcode-build-orchestrator",
+      "avdlee/swift-testing-agent-skill/swift-testing-expert",
+      "avdlee/core-data-agent-skill/core-data-expert",
     ],
   },
   {
@@ -561,7 +589,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       configFiles: ["bun.lockb", "bun.lock", "bunfig.toml"],
     },
-    skills: ["https://bun.sh/docs"],
+    skills: ["midudev/autoskills/bun"],
   },
   {
     id: "node",
@@ -573,6 +601,14 @@ export const SKILLS_MAP: Technology[] = [
       "wshobson/agents/nodejs-backend-patterns",
       "sickn33/antigravity-awesome-skills/nodejs-best-practices",
     ],
+  },
+  {
+    id: "bash",
+    name: "Bash",
+    detect: {
+      fileExtensions: [".sh", ".bash"],
+    },
+    skills: ["wshobson/agents/bash-defensive-patterns"],
   },
   {
     id: "express",
@@ -713,7 +749,7 @@ export const SKILLS_MAP: Technology[] = [
     detect: {
       packages: ["drizzle-orm", "drizzle-kit"],
     },
-    skills: ["bobmatnyc/claude-mpm-skills/drizzle-orm"],
+    skills: ["bobmatnyc/claude-mpm-skills/drizzle"],
   },
   {
     id: "nestjs",
@@ -751,7 +787,84 @@ export const SKILLS_MAP: Technology[] = [
         "electron-vite.config.cjs",
       ],
     },
-    skills: ["vercel-labs/agent-skills/electron-best-practices"],
+    skills: [],
+  },
+  {
+    id: "dotnet",
+    name: ".NET",
+    detect: {
+      configFiles: [
+        "global.json",
+        "NuGet.Config",
+        "Directory.Build.props",
+        "Directory.Packages.props",
+      ],
+      configFileContent: {
+        scanDotNetLayout: true,
+        patterns: ['<Project Sdk="Microsoft.NET.Sdk'],
+      },
+    },
+    skills: [
+      "github/awesome-copilot/dotnet-best-practices",
+      "github/awesome-copilot/dotnet-design-pattern-review",
+      "github/awesome-copilot/dotnet-upgrade",
+    ],
+  },
+  {
+    id: "csharp",
+    name: "C#",
+    detect: {
+      configFileContent: {
+        scanDotNetLayout: true,
+        patterns: ["<Project", "Microsoft.NET.Sdk"],
+      },
+    },
+    skills: [
+      "github/awesome-copilot/csharp-xunit",
+      "github/awesome-copilot/csharp-async",
+      "github/awesome-copilot/csharp-docs",
+      "github/awesome-copilot/csharp-nunit",
+      "github/awesome-copilot/csharp-mstest",
+      "github/awesome-copilot/csharp-tunit",
+    ],
+  },
+  {
+    id: "aspnetcore",
+    name: "ASP.NET Core",
+    detect: {
+      configFiles: ["appsettings.json", "appsettings.Development.json"],
+      configFileContent: {
+        scanDotNetLayout: true,
+        patterns: ["Microsoft.NET.Sdk.Web"],
+      },
+    },
+    skills: ["github/awesome-copilot/containerize-aspnetcore", "openai/skills/aspnet-core"],
+  },
+  {
+    id: "aspnet-blazor",
+    name: "Blazor",
+    detect: {
+      configFileContent: {
+        scanDotNetLayout: true,
+        patterns: ["Microsoft.NET.Sdk.BlazorWebAssembly", "Microsoft.AspNetCore.Components"],
+      },
+    },
+    skills: ["github/awesome-copilot/fluentui-blazor"],
+  },
+  {
+    id: "aspnet-minimal-api",
+    name: "ASP.NET Minimal API",
+    detect: {
+      configFiles: ["appsettings.json"],
+      configFileContent: {
+        scanDotNetLayout: true,
+        patterns: ["Microsoft.AspNetCore.OpenApi", "Swashbuckle.AspNetCore"],
+      },
+    },
+    skills: [
+      "github/awesome-copilot/aspnet-minimal-api-openapi",
+      "dotnet/skills/minimal-api-file-upload",
+    ],
   },
   {
     id: "rust",
@@ -915,17 +1028,6 @@ export const SKILLS_MAP: Technology[] = [
     ],
   },
   {
-    id: "flask",
-    name: "Flask",
-    detect: {
-      configFileContent: {
-        files: ["pyproject.toml", "requirements.txt", "setup.py", "setup.cfg", "Pipfile"],
-        patterns: ["flask", "Flask"],
-      },
-    },
-    skills: [],
-  },
-  {
     id: "python",
     name: "Python",
     detect: {
@@ -942,11 +1044,7 @@ export const SKILLS_MAP: Technology[] = [
         patterns: ["fastapi", "FastAPI"],
       },
     },
-    skills: [
-      "wshobson/agents/fastapi-templates",
-      "mindrally/skills/fastapi-python",
-      "jezweb/claude-skills/fastapi",
-    ],
+    skills: ["wshobson/agents/fastapi-templates", "mindrally/skills/fastapi-python"],
   },
   {
     id: "django",
@@ -968,11 +1066,11 @@ export const SKILLS_MAP: Technology[] = [
     name: "Flask",
     detect: {
       configFileContent: {
-        files: ["pyproject.toml", "requirements.txt", "setup.py", "Pipfile"],
+        files: ["pyproject.toml", "requirements.txt", "setup.py", "setup.cfg", "Pipfile"],
         patterns: ["flask", "Flask"],
       },
     },
-    skills: ["jezweb/claude-skills/flask", "aj-geddes/useful-ai-prompts/flask-api-development"],
+    skills: ["aj-geddes/useful-ai-prompts/flask-api-development"],
   },
   {
     id: "pydantic",
@@ -995,7 +1093,7 @@ export const SKILLS_MAP: Technology[] = [
       },
     },
     skills: [
-      "bobmatnyc/claude-mpm-skills/sqlalchemy-orm",
+      "bobmatnyc/claude-mpm-skills/sqlalchemy",
       "wispbit-ai/skills/sqlalchemy-alembic-expert-best-practices-code-review",
     ],
   },
@@ -1086,6 +1184,12 @@ export const COMBO_SKILLS_MAP: ComboSkill[] = [
     skills: ["expo/skills/expo-tailwind-setup"],
   },
   {
+    id: "react-hook-form-zod",
+    name: "React Hook Form + Zod",
+    requires: ["react-hook-form", "zod"],
+    skills: ["pproenca/dot-skills/zod"],
+  },
+  {
     id: "nextjs-supabase",
     name: "Next.js + Supabase",
     requires: ["nextjs", "supabase"],
@@ -1095,16 +1199,13 @@ export const COMBO_SKILLS_MAP: ComboSkill[] = [
     id: "react-native-expo",
     name: "React Native + Expo",
     requires: ["react-native", "expo"],
-    skills: [
-      "expo/skills/building-native-ui",
-      "sleekdotdesign/agent-skills/sleek-design-mobile-apps",
-    ],
+    skills: ["expo/skills/building-native-ui", "sleekdotdesign/agent-skills/design-mobile-apps"],
   },
   {
     id: "nextjs-vercel-ai",
     name: "Next.js + Vercel AI SDK",
     requires: ["nextjs", "vercel-ai"],
-    skills: ["vercel/ai/ai-sdk", "vercel-labs/next-skills/next-best-practices"],
+    skills: ["vercel/ai/use-ai-sdk", "vercel-labs/next-skills/next-best-practices"],
   },
   {
     id: "nextjs-playwright",
@@ -1116,7 +1217,7 @@ export const COMBO_SKILLS_MAP: ComboSkill[] = [
     id: "react-shadcn",
     name: "React + shadcn/ui",
     requires: ["react", "shadcn"],
-    skills: ["shadcn/ui/shadcn", "vercel-labs/agent-skills/vercel-react-best-practices"],
+    skills: ["shadcn/ui/shadcn", "vercel-labs/agent-skills/react-best-practices"],
   },
   {
     id: "tailwind-shadcn",
@@ -1269,17 +1370,8 @@ export const FRONTEND_BONUS_SKILLS: string[] = [
 
 export const AGENT_FOLDER_MAP: Record<string, string> = {
   ".claude": "claude-code",
-  ".cursor": "cursor",
   ".cline": "cline",
-  ".codex": "codex",
-  ".opencode": "opencode",
-  ".antigravity": "antigravity",
-  ".augment": "augment",
-  ".copilot": "github-copilot",
-  ".gemini": "gemini-cli",
   ".junie": "junie",
-  ".amp": "amp",
-  ".supermaven": "supermaven",
   ".codebuddy": "codebuddy",
   ".continue": "continue",
   ".kiro": "kiro-cli",

@@ -44,6 +44,9 @@ const SCAN_SKIP_DIRS = new Set([
   ".turbo",
   ".terraform",
   "var",
+  "bin",
+  "obj",
+  ".vs",
 ]);
 
 const GRADLE_SCAN_ROOT_FILES = [
@@ -52,6 +55,13 @@ const GRADLE_SCAN_ROOT_FILES = [
   "settings.gradle.kts",
   "settings.gradle",
   "gradle/libs.versions.toml",
+];
+
+const DOTNET_SCAN_ROOT_FILES = [
+  "global.json",
+  "NuGet.Config",
+  "Directory.Build.props",
+  "Directory.Packages.props",
 ];
 
 // ── Gradle Scanning ──────────────────────────────────────────
@@ -123,6 +133,55 @@ function gradleLayoutCandidatePaths(projectDir: string): string[] {
   return candidates;
 }
 
+// ── .NET Scanning ────────────────────────────────────────────
+
+const _dotNetCache = new Map<string, string[]>();
+
+function dotNetLayoutCandidatePaths(projectDir: string): string[] {
+  const cached = _dotNetCache.get(projectDir);
+  if (cached) return cached;
+
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  function add(filePath: string): void {
+    if (!seen.has(filePath)) {
+      candidates.push(filePath);
+      seen.add(filePath);
+    }
+  }
+
+  for (const f of DOTNET_SCAN_ROOT_FILES) {
+    add(join(projectDir, f));
+  }
+
+  function scan(dir: string, depth: number): void {
+    if (depth > 2) return;
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const e of entries) {
+      if (e.isFile()) {
+        const lower = e.name.toLowerCase();
+        if (lower.endsWith(".sln") || lower.endsWith(".csproj") || lower.endsWith(".fsproj")) {
+          add(join(dir, e.name));
+        }
+      } else if (e.isDirectory() && !e.name.startsWith(".") && !SCAN_SKIP_DIRS.has(e.name)) {
+        scan(join(dir, e.name), depth + 1);
+      }
+    }
+  }
+
+  scan(projectDir, 0);
+
+  _dotNetCache.set(projectDir, candidates);
+  return candidates;
+}
+
 function resolveConfigFileContentPaths(
   projectDir: string,
   config: ConfigFileContentBlock,
@@ -130,7 +189,46 @@ function resolveConfigFileContentPaths(
   if (config.scanGradleLayout) {
     return gradleLayoutCandidatePaths(projectDir);
   }
+  if (config.scanDotNetLayout) {
+    return dotNetLayoutCandidatePaths(projectDir);
+  }
   return (config.files || []).map((f) => join(projectDir, f));
+}
+
+// ── Project File Scanning ────────────────────────────────────
+
+function hasFileWithExtension(
+  projectDir: string,
+  extensions: string[],
+  maxDepth: number = 4,
+): boolean {
+  const normalized = new Set(
+    extensions.map((ext) => (ext.startsWith(".") ? ext : `.${ext}`).toLowerCase()),
+  );
+  const normalizedExtensions = [...normalized];
+
+  function scan(dir: string, depth: number): boolean {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const lowerName = entry.name.toLowerCase();
+        if (normalizedExtensions.some((ext) => lowerName.endsWith(ext))) return true;
+      } else if (entry.isDirectory() && depth < maxDepth) {
+        if (SCAN_SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+        if (scan(join(dir, entry.name), depth + 1)) return true;
+      }
+    }
+
+    return false;
+  }
+
+  return scan(projectDir, 0);
 }
 
 // ── Frontend File Scanning ───────────────────────────────────
@@ -372,6 +470,7 @@ function detectTechnologiesInDir(
   const detected: Technology[] = [];
   const fileContentCache = new Map<string, string | null>();
   const existsCache = new Map<string, boolean>();
+  const fileExtensionCache = new Map<string, boolean>();
 
   function cachedRead(filePath: string): string | null {
     if (fileContentCache.has(filePath)) return fileContentCache.get(filePath)!;
@@ -406,6 +505,14 @@ function detectTechnologiesInDir(
 
     if (!found && tech.detect.configFiles) {
       found = tech.detect.configFiles.some((f) => cachedExists(join(dir, f)));
+    }
+
+    if (!found && tech.detect.fileExtensions) {
+      const key = tech.detect.fileExtensions.join("\0");
+      if (!fileExtensionCache.has(key)) {
+        fileExtensionCache.set(key, hasFileWithExtension(dir, tech.detect.fileExtensions));
+      }
+      found = fileExtensionCache.get(key)!;
     }
 
     if (!found && tech.detect.gems) {

@@ -237,6 +237,44 @@ describe("detectTechnologies", () => {
     ok(ids.includes("tailwind"));
   });
 
+  it("detects Zod from dependencies", () => {
+    writePackageJson(tmp.path, { dependencies: { zod: "^4.3.6" } });
+    const { detected } = detectTechnologies(tmp.path);
+    const ids = detected.map((t) => t.id);
+    ok(ids.includes("zod"));
+  });
+
+  it("detects InstantDB from dependencies", () => {
+    writePackageJson(tmp.path, { dependencies: { "@instantdb/react": "^0.21.0" } });
+    const { detected } = detectTechnologies(tmp.path);
+    const instantdb = detected.find((t) => t.id === "instantdb");
+    ok(instantdb);
+    ok(instantdb.skills.includes("instantdb/skills/instantdb"));
+  });
+
+  it("detects InstantDB from schema file", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "instant.schema.ts", "import { i } from '@instantdb/react';\n");
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "instantdb"));
+  });
+
+  it("detects React Hook Form from dependencies", () => {
+    writePackageJson(tmp.path, { dependencies: { "react-hook-form": "^7.58.0" } });
+    const { detected } = detectTechnologies(tmp.path);
+    const reactHookForm = detected.find((t) => t.id === "react-hook-form");
+    ok(reactHookForm);
+    ok(reactHookForm.skills.includes("pproenca/dot-skills/react-hook-form"));
+  });
+
+  it("detects React Hook Form + Zod combo when both are present", () => {
+    writePackageJson(tmp.path, {
+      dependencies: { "react-hook-form": "^7.58.0", zod: "^4.3.6" },
+    });
+    const { combos } = detectTechnologies(tmp.path);
+    ok(combos.some((c) => c.id === "react-hook-form-zod"));
+  });
+
   it("detects Go from go.mod", () => {
     writePackageJson(tmp.path);
     writeFile(tmp.path, "go.mod", "module example.com/test\n\ngo 1.24.0\n");
@@ -255,6 +293,30 @@ describe("detectTechnologies", () => {
     writePackageJson(tmp.path);
     const { detected } = detectTechnologies(tmp.path);
     ok(!detected.some((t) => t.id === "go"));
+  });
+
+  it("detects Bash scripts from .sh files", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "scripts/deploy.sh", "#!/usr/bin/env bash\nset -euo pipefail\n");
+    const { detected } = detectTechnologies(tmp.path);
+    const bash = detected.find((t) => t.id === "bash");
+    ok(bash);
+    ok(bash.skills.includes("wshobson/agents/bash-defensive-patterns"));
+  });
+
+  it("detects Bash scripts from workspaces", () => {
+    writePackageJson(tmp.path, { workspaces: ["packages/*"] });
+    addWorkspace(tmp.path, "packages/api");
+    writeFile(tmp.path, "packages/api/scripts/setup.bash", "#!/usr/bin/env bash\n");
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "bash"));
+  });
+
+  it("ignores Bash scripts inside skipped directories", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "node_modules/package/postinstall.sh", "#!/usr/bin/env bash\n");
+    const { detected } = detectTechnologies(tmp.path);
+    ok(!detected.some((t) => t.id === "bash"));
   });
 
   it("detects Three.js from dependencies", () => {
@@ -612,6 +674,68 @@ plugins {
     writeFile(tmp.path, "electron-vite.config.ts", "export default {}");
     const { detected } = detectTechnologies(tmp.path);
     ok(detected.some((t) => t.id === "electron"));
+  });
+
+  it("detects .NET from global.json", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "global.json", '{"sdk": {"version": "8.0.100"}}');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "dotnet"));
+  });
+
+  it("detects C# from .csproj in root", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "MyProject.csproj", '<Project Sdk="Microsoft.NET.Sdk">');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "csharp"));
+    ok(detected.some((t) => t.id === "dotnet"));
+  });
+
+  it("detects ASP.NET Core from .csproj with Web SDK", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "MyWebApp.csproj", '<Project Sdk="Microsoft.NET.Sdk.Web">');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "aspnetcore"));
+  });
+
+  it("detects .NET and C# from nested .csproj", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "src/Library/Library.csproj", '<Project Sdk="Microsoft.NET.Sdk">');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "dotnet"));
+    ok(detected.some((t) => t.id === "csharp"));
+  });
+
+  it("detects Blazor from .csproj", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "MyBlazor.csproj", '<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "aspnet-blazor"));
+  });
+
+  it("detects Minimal API from .csproj package reference", () => {
+    writePackageJson(tmp.path);
+    writeFile(
+      tmp.path,
+      "MyApi.csproj",
+      '<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />',
+    );
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "aspnet-minimal-api"));
+  });
+
+  it("detects ASP.NET Core from appsettings.json", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "appsettings.json", "{}");
+    const { detected } = detectTechnologies(tmp.path);
+    ok(detected.some((t) => t.id === "aspnetcore"));
+  });
+
+  it("skips bin and obj directories when scanning .NET projects", () => {
+    writePackageJson(tmp.path);
+    writeFile(tmp.path, "bin/Debug/net8.0/ExcludeMe.csproj", '<Project Sdk="Microsoft.NET.Sdk">');
+    const { detected } = detectTechnologies(tmp.path);
+    ok(!detected.some((t) => t.id === "csharp"));
   });
 
   it("detects Rust from Cargo.toml", () => {
@@ -1425,6 +1549,14 @@ describe("detectCombos", () => {
     const ids = combos.map((c) => c.id);
     ok(ids.includes("nextjs-supabase"));
     ok(ids.includes("nextjs-playwright"));
+  });
+
+  it("detects react-hook-form-zod combo", () => {
+    const combo = detectCombos(["react-hook-form", "zod"]).find(
+      (c) => c.id === "react-hook-form-zod",
+    );
+    ok(combo);
+    ok(combo.skills.includes("pproenca/dot-skills/zod"));
   });
 
   it("does not detect combo when only one requirement is met", () => {
